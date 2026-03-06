@@ -1,0 +1,79 @@
+module spi_master(input clk,
+                  input rst,
+                  input start,
+                  input [7:0]data, //mosi
+                  input miso,  //data sent by slave --->master
+                  output reg mosi,  //master ---->slave
+                  output reg sclk,
+                  output reg ss,  
+                  output reg [7:0]data_out,
+                  output reg done
+    );
+    reg [2:0]bit_cnt;
+    reg [7:0]shift_reg;  //load and sent to slave
+    reg [7:0]recv_reg;  //store the data sent from slave
+    
+    parameter IDLE=0,
+              LOAD=1,
+              TRANSFER=2,
+              DONE=3; //11
+    reg [1:0]state;
+    always @(posedge clk or posedge rst)begin
+    if(rst)begin
+    sclk<=0;
+    mosi<=0;
+    ss<=1;
+    done<=0;
+    state<=IDLE;
+    bit_cnt<=0;
+    shift_reg<=0;
+    recv_reg<=0;
+    data_out<=0;
+    end
+    else begin
+    case(state)
+    
+IDLE:begin
+    ss<=1;
+    done<=0;
+    if(start)begin
+    state<=LOAD;
+    end
+    else 
+    state<=IDLE;
+    end
+    
+LOAD:begin
+    ss<=0;  //enable the slave
+    sclk<=0;
+    shift_reg<=0;
+    bit_cnt<=3'd7;  //MSB
+    state<=TRANSFER;
+    end
+    
+TRANSFER:begin
+    sclk<=~clk;
+    if(sclk==0)begin  //neg edge
+    mosi <= shift_reg[bit_cnt];
+    end
+    else begin
+    recv_reg[bit_cnt]<=miso;  //receive data
+    if(bit_cnt==0)begin
+    state<=DONE;
+    end
+    else begin
+    bit_cnt <=bit_cnt-1;
+    state<=TRANSFER;
+    end
+    end
+    end
+DONE:begin
+ ss<=1;
+ done<=1;
+ data_out<=recv_reg;
+ state<=IDLE;
+ end
+ endcase
+ end
+ end    
+endmodule
